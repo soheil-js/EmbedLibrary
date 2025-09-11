@@ -1,24 +1,21 @@
 # Embed Library .NET
-This program allows you to make your project portable after compilation. It is fully compatible with all .NET obfuscation tools and does not interfere with their processes.
+Embed your .NET dependencies directly into your executable – **no installation, no extra DLLs**.  
+Runs **after compilation**, so it works with **any obfuscation tool** without interfering.  
 
+## 🚀 Features
+- ✅ Works with **all .NET versions**  
+- ✅ **Post-build** tool (no build process changes)  
+- ✅ **Compresses assemblies** before embedding  
+- ✅ **Memory-only loading** (no DLLs dropped to disk)  
+- ✅ **Flexible library selection** (manual or auto-detect)  
 
+## 🔎 Comparison
 
-## :hotsprings:Features :
-| Feature                        | ILMerge            | Costura.Fody       | EmbedLibrary      |
-|--------------------------------|-------------------|--------------------|-------------------|
-| **Merging Method**             | Merges assemblies into a single file | Embeds assemblies in resources and loads at runtime | Embeds assemblies in resources and loads at runtime |
-| **Supports All .NET Versions** | ❌ No             | ✅ Yes             | ✅ Yes             |
-| **Loading Method**             | Merged into output file | Loads from resources | Loads from resources |
-| **Requires External Build Tools** | ✅ Yes (Requires ILMerge.exe to be run separately after compilation) | ✅ Yes (Requires Costura.Fody NuGet package, runs automatically during compilation) | ✅ Yes (Requires EmbedLibrary.exe to be run separately after compilation) |
-| **Memory-Only Loading**        | ❌ No             | ✅ Yes             | ✅ Yes             |
-| **Build Process Modification** | ✅ No modification (Runs post-build, allows further processing like obfuscation) | ❌ Yes (Modifies build process, no flexibility after compilation) | ✅ No modification (Runs post-build, allows further processing like obfuscation) |
-| **Compression Before Embedding** | ❌ No            | ❌ No              | ✅ Yes             |
-| **Security Against Extraction** | ❌ Weak (Assemblies are in the output file) | ⚠️ Medium (Can be extracted from resources) | ⚠️ Harder (Loads from memory but can be dumped) |
-| **Manual & Automatic Library Selection** | ❌ No (Requires all assemblies to be merged manually) | ❌ No (Automatically embeds all referenced assemblies) | ✅ Yes (Supports both manual selection & auto-detection of referenced libraries) |
-
-
-
-
+| Tool            | Build Process | Memory Loading | Compression | Flexibility |
+|-----------------|--------------|----------------|-------------|-------------|
+| **EmbedLibrary**| Post-build   | ✅ Yes         | ✅ Yes      | ✅ Manual + Auto |
+| **Costura.Fody**| Build-time   | ✅ Yes         | ✅ Yes (enabled by default, can disable via option) | ❌ Auto only |
+| **ILMerge**     | Post-build   | ❌ No          | ❌ No       | ❌ Manual only (Windows / .NET Framework focused) |
 
 
 
