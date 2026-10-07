@@ -1,49 +1,61 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using dnlib.DotNet;
+using dnlib.Inject.Caching;
 
 namespace dnlib.Inject
 {
-    internal class InjectMapper : ImportMapper
+    /// <summary>
+    /// Resolves and caches references between the source module (where types are injected
+    /// from) and the target module (where they are injected into).
+    ///
+    /// Acts as a dnlib <see cref="ImportMapper"/> so that dnlib's own <see cref="Importer"/>
+    /// redirects references that point at an already-injected definition to its injected
+    /// copy, instead of importing a brand-new reference to the original assembly.
+    /// </summary>
+    internal sealed class InjectMapper : ImportMapper
     {
-        private readonly Dictionary<ITypeDefOrRef, ITypeDefOrRef> _typeRefCache;
-        private readonly Dictionary<Type, ITypeDefOrRef> _typeCache;
-        private readonly Dictionary<IMemberRef, IMemberRef> _memberRefCache;
-        private readonly Dictionary<IMethodDefOrRef, IMethodDefOrRef> _methodRefCache;
-        private readonly Dictionary<TypeSig, TypeSig> _typeSigCache;
-        private readonly Dictionary<MethodSig, MethodSig> _methodSigCache;
-        private readonly Dictionary<PropertySig, PropertySig> _propertySigCache;
-        private readonly Dictionary<FieldSig, FieldSig> _fieldSigCache;
-        private readonly Dictionary<CallingConventionSig, CallingConventionSig> _callingConventionSigCache;
-        private readonly Dictionary<ICustomAttributeType, ICustomAttributeType> _customAttributeTypeCache;
-        private readonly Dictionary<IType, IType> _itypeCache;
-        private readonly Dictionary<IMethod, IMethod> _methodCache;
-        private readonly Dictionary<IField, IField> _fieldCache;
+        private readonly ImportCache<ITypeDefOrRef, ITypeDefOrRef> _typeRefCache = new ImportCache<ITypeDefOrRef, ITypeDefOrRef>();
+        private readonly ImportCache<Type, ITypeDefOrRef> _typeCache = new ImportCache<Type, ITypeDefOrRef>();
+        private readonly ImportCache<IMemberRef, IMemberRef> _memberRefCache = new ImportCache<IMemberRef, IMemberRef>();
+        private readonly ImportCache<IMethodDefOrRef, IMethodDefOrRef> _methodRefCache = new ImportCache<IMethodDefOrRef, IMethodDefOrRef>();
+        private readonly ImportCache<TypeSig, TypeSig> _typeSigCache = new ImportCache<TypeSig, TypeSig>();
+        private readonly ImportCache<MethodSig, MethodSig> _methodSigCache = new ImportCache<MethodSig, MethodSig>();
+        private readonly ImportCache<PropertySig, PropertySig> _propertySigCache = new ImportCache<PropertySig, PropertySig>();
+        private readonly ImportCache<FieldSig, FieldSig> _fieldSigCache = new ImportCache<FieldSig, FieldSig>();
+        private readonly ImportCache<CallingConventionSig, CallingConventionSig> _callingConventionSigCache = new ImportCache<CallingConventionSig, CallingConventionSig>();
+        private readonly ImportCache<ICustomAttributeType, ICustomAttributeType> _customAttributeTypeCache = new ImportCache<ICustomAttributeType, ICustomAttributeType>();
+        private readonly ImportCache<IType, IType> _itypeCache = new ImportCache<IType, IType>();
+        private readonly ImportCache<IMethod, IMethod> _methodCache = new ImportCache<IMethod, IMethod>();
+        private readonly ImportCache<IField, IField> _fieldCache = new ImportCache<IField, IField>();
 
-        public Dictionary<IMemberRef, IMemberRef> DnlibDefMaps { get; private set; }
-        public ModuleDef TargetModule { get; private set; }
-        public Importer Importer { get; private set; }
+        // Lazily (re)built index over DnlibDefMaps, keyed by the source member's MDToken.
+        // The original implementation did `DnlibDefMaps.Keys.FirstOrDefault(...)` on every
+        // single Map(...) call, which is O(n) per lookup and O(n^2) overall for a type with
+        // many members. Rebuilding this index only when DnlibDefMaps has actually grown
+        // keeps lookups effectively O(1) once skeleton-building for a type is done.
+        private Dictionary<MDToken, IMemberRef> _tokenIndex;
+        private int _tokenIndexVersion = -1;
+
+        /// <summary>
+        /// Maps every already-injected source definition (TypeDef/MethodDef/FieldDef/...)
+        /// to the definition that was created for it in <see cref="TargetModule"/>.
+        /// </summary>
+        public Dictionary<IMemberRef, IMemberRef> DnlibDefMaps { get; } = new Dictionary<IMemberRef, IMemberRef>();
+
+        /// <summary>The module definitions are being injected into.</summary>
+        public ModuleDef TargetModule { get; }
+
+        /// <summary>The dnlib importer used to bring foreign references into <see cref="TargetModule"/>.</summary>
+        public Importer Importer { get; }
 
         public InjectMapper(ModuleDef target)
         {
-            _typeRefCache = new Dictionary<ITypeDefOrRef, ITypeDefOrRef>();
-            _typeCache = new Dictionary<Type, ITypeDefOrRef>();
-            _memberRefCache = new Dictionary<IMemberRef, IMemberRef>();
-            _methodRefCache = new Dictionary<IMethodDefOrRef, IMethodDefOrRef>();
-            _typeSigCache = new Dictionary<TypeSig, TypeSig>();
-            _methodSigCache = new Dictionary<MethodSig, MethodSig>();
-            _propertySigCache = new Dictionary<PropertySig, PropertySig>();
-            _fieldSigCache = new Dictionary<FieldSig, FieldSig>();
-            _callingConventionSigCache = new Dictionary<CallingConventionSig, CallingConventionSig>();
-            _customAttributeTypeCache = new Dictionary<ICustomAttributeType, ICustomAttributeType>();
-            _itypeCache = new Dictionary<IType, IType>();
-            _methodCache = new Dictionary<IMethod, IMethod>();
-            _fieldCache = new Dictionary<IField, IField>();
-            DnlibDefMaps = new Dictionary<IMemberRef, IMemberRef>();
             TargetModule = target ?? throw new ArgumentNullException(nameof(target));
             Importer = new Importer(target, ImporterOptions.TryToUseTypeDefs, default, this);
         }
+
+        #region ImportMapper overrides
 
         public override ITypeDefOrRef Map(ITypeDefOrRef source)
         {
@@ -52,8 +64,7 @@ namespace dnlib.Inject
             if (_typeRefCache.TryGetValue(source, out var cachedType))
                 return cachedType;
 
-            var key = DnlibDefMaps.Keys.FirstOrDefault(k => k.MDToken == source.MDToken);
-            return key != null ? DnlibDefMaps[key] as ITypeDefOrRef : null;
+            return ResolveByToken(source.MDToken) as ITypeDefOrRef;
         }
 
         public override IMethod Map(MethodDef source)
@@ -66,8 +77,7 @@ namespace dnlib.Inject
             if (_memberRefCache.TryGetValue(source, out var cachedMember))
                 return cachedMember as IMethod;
 
-            var key = DnlibDefMaps.Keys.FirstOrDefault(k => k.MDToken == source.MDToken);
-            return key != null ? DnlibDefMaps[key] as IMethod : null;
+            return ResolveByToken(source.MDToken) as IMethod;
         }
 
         public override IField Map(FieldDef source)
@@ -77,8 +87,7 @@ namespace dnlib.Inject
             if (_memberRefCache.TryGetValue(source, out var cachedMember))
                 return cachedMember as IField;
 
-            var key = DnlibDefMaps.Keys.FirstOrDefault(k => k.MDToken == source.MDToken);
-            return key != null ? DnlibDefMaps[key] as IField : null;
+            return ResolveByToken(source.MDToken) as IField;
         }
 
         public override MemberRef Map(MemberRef source)
@@ -88,169 +97,107 @@ namespace dnlib.Inject
             if (_memberRefCache.TryGetValue(source, out var cachedMember))
                 return cachedMember as MemberRef;
 
-            var key = DnlibDefMaps.Keys.FirstOrDefault(k => k.MDToken == source.MDToken);
-            return key != null ? DnlibDefMaps[key] as MemberRef : null;
+            return ResolveByToken(source.MDToken) as MemberRef;
         }
 
         public override ITypeDefOrRef Map(Type source)
         {
             if (source == null) return null;
+
             if (_typeCache.TryGetValue(source, out var cachedType))
                 return cachedType;
 
-            var key = DnlibDefMaps.Keys.FirstOrDefault(k => k.MDToken.ToInt32() == source.MetadataToken);
-            var result = key != null ? DnlibDefMaps[key] as ITypeDefOrRef : null;
+            var result = ResolveByMetadataToken(source.MetadataToken) as ITypeDefOrRef;
             if (result != null)
-                _typeCache[source] = result;
+                _typeCache.GetOrAdd(source, _ => result);
 
             return result;
         }
 
-        public ITypeDefOrRef ImportType(ITypeDefOrRef type)
+        #endregion
+
+        #region Import helpers (used while cloning/copying injected members)
+
+        public ITypeDefOrRef ImportType(ITypeDefOrRef type) =>
+            _typeRefCache.GetOrAdd(type, t => Importer.Import(t));
+
+        public IMemberRef ImportMember(IMemberRef member) =>
+            _memberRefCache.GetOrAdd(member, ImportMemberCore);
+
+        public IMethodDefOrRef ImportMethod(IMethodDefOrRef method) =>
+            _methodRefCache.GetOrAdd(method, m => Importer.Import(m) as IMethodDefOrRef);
+
+        public TypeSig ImportTypeSig(TypeSig sig) =>
+            _typeSigCache.GetOrAdd(sig, Importer.Import);
+
+        public MethodSig ImportMethodSig(MethodSig sig) =>
+            _methodSigCache.GetOrAdd(sig, Importer.Import);
+
+        public PropertySig ImportPropertySig(PropertySig sig) =>
+            _propertySigCache.GetOrAdd(sig, Importer.Import);
+
+        public FieldSig ImportFieldSig(FieldSig sig) =>
+            _fieldSigCache.GetOrAdd(sig, Importer.Import);
+
+        public CallingConventionSig ImportCallingConventionSig(CallingConventionSig sig) =>
+            _callingConventionSigCache.GetOrAdd(sig, Importer.Import);
+
+        public ICustomAttributeType ImportCustomAttributeType(ICustomAttributeType attributeType) =>
+            _customAttributeTypeCache.GetOrAdd(attributeType, t => (ICustomAttributeType)Importer.Import(t));
+
+        public IType ImportType(IType type) =>
+            _itypeCache.GetOrAdd(type, Importer.Import);
+
+        public IMethod ImportMethod(IMethod method) =>
+            _methodCache.GetOrAdd(method, Importer.Import);
+
+        public IField ImportField(IField field) =>
+            _fieldCache.GetOrAdd(field, Importer.Import);
+
+        #endregion
+
+        private IMemberRef ImportMemberCore(IMemberRef member)
         {
-            if (type == null) return null;
-            if (_typeRefCache.TryGetValue(type, out var cachedType))
-                return cachedType;
-
-            var importedType = Importer.Import(type);
-            _typeRefCache[type] = importedType;
-            return importedType;
-        }
-
-        public IMemberRef ImportMember(IMemberRef member)
-        {
-            if (member == null) return null;
-            if (_memberRefCache.TryGetValue(member, out var cachedMember))
-                return cachedMember;
-
-            IMemberRef importedMember;
             switch (member)
             {
                 case MemberRef memberRef:
-                    importedMember = Importer.Import(memberRef);
-                    break;
+                    return Importer.Import(memberRef);
                 case MethodDef methodDef:
-                    importedMember = Importer.Import(methodDef);
-                    break;
+                    return Importer.Import(methodDef);
                 case FieldDef fieldDef:
-                    importedMember = Importer.Import(fieldDef);
-                    break;
+                    return Importer.Import(fieldDef);
                 default:
                     throw new NotSupportedException($"Unsupported member type: {member.GetType().FullName}");
             }
-
-            _memberRefCache[member] = importedMember;
-            return importedMember;
         }
 
-        public IMethodDefOrRef ImportMethod(IMethodDefOrRef method)
+        private IMemberRef ResolveByToken(MDToken token)
         {
-            if (method == null) return null;
-            if (_methodRefCache.TryGetValue(method, out var cachedMethod))
-                return cachedMethod;
-
-            var importedMethod = Importer.Import(method) as IMethodDefOrRef;
-            _methodRefCache[method] = importedMethod;
-            return importedMethod;
+            EnsureTokenIndex();
+            return _tokenIndex.TryGetValue(token, out var result) ? result : null;
         }
 
-        public TypeSig ImportTypeSig(TypeSig sig)
+        private IMemberRef ResolveByMetadataToken(int token)
         {
-            if (sig == null) return null;
-            if (_typeSigCache.TryGetValue(sig, out var cachedSig))
-                return cachedSig;
-
-            var importedSig = Importer.Import(sig);
-            _typeSigCache[sig] = importedSig;
-            return importedSig;
+            EnsureTokenIndex();
+            foreach (var entry in _tokenIndex)
+            {
+                if (entry.Key.ToInt32() == token)
+                    return entry.Value;
+            }
+            return null;
         }
 
-        public MethodSig ImportMethodSig(MethodSig sig)
+        private void EnsureTokenIndex()
         {
-            if (sig == null) return null;
-            if (_methodSigCache.TryGetValue(sig, out var cachedSig))
-                return cachedSig;
+            if (_tokenIndex != null && _tokenIndexVersion == DnlibDefMaps.Count)
+                return;
 
-            var importedSig = Importer.Import(sig);
-            _methodSigCache[sig] = importedSig;
-            return importedSig;
-        }
+            _tokenIndex = new Dictionary<MDToken, IMemberRef>();
+            foreach (var entry in DnlibDefMaps)
+                _tokenIndex[entry.Key.MDToken] = entry.Value;
 
-        public PropertySig ImportPropertySig(PropertySig sig)
-        {
-            if (sig == null) return null;
-            if (_propertySigCache.TryGetValue(sig, out var cachedSig))
-                return cachedSig;
-
-            var importedSig = Importer.Import(sig);
-            _propertySigCache[sig] = importedSig;
-            return importedSig;
-        }
-
-        public FieldSig ImportFieldSig(FieldSig sig)
-        {
-            if (sig == null) return null;
-            if (_fieldSigCache.TryGetValue(sig, out var cachedSig))
-                return cachedSig;
-
-            var importedSig = Importer.Import(sig);
-            _fieldSigCache[sig] = importedSig;
-            return importedSig;
-        }
-
-        public CallingConventionSig ImportCallingConventionSig(CallingConventionSig sig)
-        {
-            if (sig == null) return null;
-            if (_callingConventionSigCache.TryGetValue(sig, out var cachedSig))
-                return cachedSig;
-
-            var importedSig = Importer.Import(sig);
-            _callingConventionSigCache[sig] = importedSig;
-            return importedSig;
-        }
-
-        public ICustomAttributeType ImportCustomAttributeType(ICustomAttributeType attributeType)
-        {
-            if (attributeType == null) return null;
-            if (_customAttributeTypeCache.TryGetValue(attributeType, out var cachedSig))
-                return cachedSig;
-
-            var importedSig = (ICustomAttributeType)Importer.Import(attributeType);
-            _customAttributeTypeCache[attributeType] = importedSig;
-            return importedSig;
-        }
-
-        public IType ImportType(IType type)
-        {
-            if (type == null) return null;
-            if (_itypeCache.TryGetValue(type, out var cachedType))
-                return cachedType;
-
-            var importedType = Importer.Import(type);
-            _itypeCache[type] = importedType;
-            return importedType;
-        }
-
-        public IMethod ImportMethod(IMethod method)
-        {
-            if (method == null) return null;
-            if (_methodCache.TryGetValue(method, out var cachedMethod))
-                return cachedMethod;
-
-            var importedMethod = Importer.Import(method);
-            _methodCache[method] = importedMethod;
-            return importedMethod;
-        }
-
-        public IField ImportField(IField field)
-        {
-            if (field == null) return null;
-            if (_fieldCache.TryGetValue(field, out var cachedField))
-                return cachedField;
-
-            var importedField = Importer.Import(field);
-            _fieldCache[field] = importedField;
-            return importedField;
+            _tokenIndexVersion = DnlibDefMaps.Count;
         }
     }
 }

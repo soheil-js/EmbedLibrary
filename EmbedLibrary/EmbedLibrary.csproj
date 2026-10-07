@@ -38,8 +38,8 @@
     <ApplicationIcon>import.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="dnlib, Version=4.4.0.0, Culture=neutral, PublicKeyToken=50e96378b6e77999, processorArchitecture=MSIL">
-      <HintPath>..\packages\dnlib.4.4.0\lib\net45\dnlib.dll</HintPath>
+    <Reference Include="dnlib, Version=4.5.0.0, Culture=neutral, PublicKeyToken=50e96378b6e77999, processorArchitecture=MSIL">
+      <HintPath>..\packages\dnlib.4.5.0\lib\net45\dnlib.dll</HintPath>
     </Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
@@ -64,8 +64,15 @@
   <ItemGroup>
     <Compile Include="Core\Library\Loader.cs" />
     <Compile Include="Core\Library\Embed.cs" />
+    <Compile Include="dnlib\Inject\ImportCache.cs" />
     <Compile Include="dnlib\Inject\Injection.cs" />
+    <Compile Include="dnlib\Inject\InjectionException.cs" />
     <Compile Include="dnlib\Inject\InjectMapper.cs" />
+    <Compile Include="dnlib\Inject\MemberCloner.cs" />
+    <Compile Include="dnlib\Inject\MemberCopier.cs" />
+    <Compile Include="dnlib\Inject\MethodBodyCopier.cs" />
+    <Compile Include="dnlib\Inject\ReferenceFixer.cs" />
+    <Compile Include="dnlib\Inject\TypeInitializer.cs" />
     <Compile Include="dnlib\Load\AssemblyLoader.cs" />
     <Compile Include="dnlib\Extensions\Extension.cs" />
     <Compile Include="dnlib\Resources\ResourceManagement.cs" />
