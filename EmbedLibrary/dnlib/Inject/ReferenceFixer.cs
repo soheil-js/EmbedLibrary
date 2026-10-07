@@ -31,6 +31,13 @@ namespace dnlib.Inject
                 FixReferences(nestedType);
         }
 
+        /// <summary>
+        /// Re-resolves every generic parameter constraint's type. Now mostly a defensive
+        /// no-op: <see cref="MemberCopier"/> already creates and correctly imports each
+        /// constraint during the copy phase. Kept as a safety net in case a constraint
+        /// references something outside the type's own tree that only became available
+        /// later (e.g. a type injected in a previous, separate call).
+        /// </summary>
         public void FixGenericParameters(TypeDef target)
         {
             foreach (var method in target.Methods)

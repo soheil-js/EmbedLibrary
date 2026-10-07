@@ -1,36 +1,35 @@
+using System.Collections.Generic;
 using System.Linq;
 using dnlib.DotNet;
 
 namespace dnlib.Inject
 {
     /// <summary>
-    /// Fills in the details (base type, interfaces, signatures, custom attributes and
-    /// method bodies) of definitions that have already been cloned into the target module
-    /// and registered in <see cref="InjectMapper.DnlibDefMaps"/>.
+    /// Fills in the details of definitions that have already been cloned into the target
+    /// module and registered in <see cref="InjectMapper.DnlibDefMaps"/>: base type,
+    /// interfaces, signatures, custom attributes, security declarations, constants,
+    /// marshaling info, generic parameter constraints, parameter metadata, field initial
+    /// data (RVA) and method bodies.
     /// </summary>
     internal sealed class MemberCopier
     {
         private readonly InjectMapper _mapper;
         private readonly MethodBodyCopier _bodyCopier;
+        private readonly AttributeCopier _attributeCopier;
 
         public MemberCopier(InjectMapper mapper)
         {
             _mapper = mapper;
             _bodyCopier = new MethodBodyCopier(mapper);
+            _attributeCopier = new AttributeCopier(mapper);
         }
 
         /// <summary>
         /// Copies every member of <paramref name="source"/> (and, if
-        /// <paramref name="copyTypeAttributes"/> is true, the type itself: base type and
-        /// interfaces) into its injected counterpart.
+        /// <paramref name="copyTypeAttributes"/> is true, the type itself) into its injected
+        /// counterpart. Deliberately does NOT recurse into nested types - see
+        /// <see cref="TypeInitializer.CopyTree"/>, which calls this once per type.
         /// </summary>
-        /// <remarks>
-        /// Deliberately does NOT recurse into nested types. In the original implementation
-        /// nested types were copied twice: once by the caller's own recursion while building
-        /// the skeleton, and a second time by this method's own nested-type loop - which
-        /// silently duplicated every custom attribute on a nested type's members. Callers
-        /// (see <see cref="TypeInitializer"/>) are expected to invoke this once per type.
-        /// </remarks>
         public void CopyAll(TypeDef source, bool copyTypeAttributes)
         {
             if (copyTypeAttributes)
@@ -57,6 +56,17 @@ namespace dnlib.Inject
 
             foreach (InterfaceImpl iface in source.Interfaces)
                 target.Interfaces.Add(new InterfaceImplUser(_mapper.Importer.Import(iface.Interface)));
+
+            foreach (var ca in source.CustomAttributes)
+                target.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
+
+            if (source.HasDeclSecurities)
+            {
+                foreach (var declSecurity in source.DeclSecurities)
+                    target.DeclSecurities.Add(_attributeCopier.CopyDeclSecurity(declSecurity));
+            }
+
+            CopyGenericParameterDetails(source.GenericParameters, target.GenericParameters);
         }
 
         private void CopyMethodDef(MethodDef source)
@@ -64,7 +74,6 @@ namespace dnlib.Inject
             var target = (MethodDef)_mapper.DnlibDefMaps[source];
 
             target.Signature = _mapper.ImportCallingConventionSig(source.Signature);
-            target.Parameters.UpdateParameterTypes();
 
             if (source.ImplMap != null)
             {
@@ -75,15 +84,77 @@ namespace dnlib.Inject
             }
 
             foreach (CustomAttribute ca in source.CustomAttributes)
-                target.CustomAttributes.Add(new CustomAttribute(_mapper.ImportCustomAttributeType(ca.Constructor)));
+                target.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
+
+            if (source.HasDeclSecurities)
+            {
+                foreach (var declSecurity in source.DeclSecurities)
+                    target.DeclSecurities.Add(_attributeCopier.CopyDeclSecurity(declSecurity));
+            }
+
+            CopyParamDefs(source, target);
+            CopyGenericParameterDetails(source.GenericParameters, target.GenericParameters);
 
             _bodyCopier.Copy(source, target);
+        }
+
+        /// <summary>
+        /// Copies <see cref="MethodDef.ParamDefs"/> - parameter names, attributes
+        /// (<c>[In]</c>/<c>[Out]</c>/<c>[Optional]</c>), default values and marshaling info.
+        /// <see cref="ParameterList"/> (<c>MethodDef.Parameters</c>) is derived from the
+        /// signature plus this list, so without it parameters keep their type but lose their
+        /// name and everything else.
+        /// </summary>
+        private void CopyParamDefs(MethodDef source, MethodDef target)
+        {
+            foreach (ParamDef sourceParam in source.ParamDefs)
+            {
+                var targetParam = new ParamDefUser(sourceParam.Name, sourceParam.Sequence, sourceParam.Attributes);
+
+                if (sourceParam.Constant != null)
+                    targetParam.Constant = CopyConstant(sourceParam.Constant);
+
+                if (sourceParam.MarshalType != null)
+                    targetParam.MarshalType = sourceParam.MarshalType;
+
+                foreach (var ca in sourceParam.CustomAttributes)
+                    targetParam.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
+
+                target.ParamDefs.Add(targetParam);
+            }
+
+            target.Parameters.UpdateParameterTypes();
         }
 
         private void CopyFieldDef(FieldDef source)
         {
             var target = (FieldDef)_mapper.DnlibDefMaps[source];
+
             target.Signature = _mapper.Importer.Import(source.Signature);
+
+            foreach (var ca in source.CustomAttributes)
+                target.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
+
+            // Constant value: this is what makes enum members and const fields actually
+            // carry their value - without it every enum member/const field becomes 0/null.
+            if (source.Constant != null)
+                target.Constant = CopyConstant(source.Constant);
+
+            // Marshaling info ([MarshalAs], used for P/Invoke interop). MarshalType
+            // descriptors don't hold module-bound metadata tokens, so they can be reused
+            // directly without going through the importer.
+            if (source.MarshalType != null)
+                target.MarshalType = source.MarshalType;
+
+            // Explicit struct layout ([FieldOffset]).
+            if (source.FieldOffset.HasValue)
+                target.FieldOffset = source.FieldOffset;
+
+            // Initial data stored at the field's RVA - e.g. the backing data for large
+            // compiler-generated array initializers. Without this the field exists but its
+            // embedded bytes are silently dropped.
+            if ((source.Attributes & FieldAttributes.HasFieldRVA) != 0 && source.InitialValue != null)
+                target.InitialValue = source.InitialValue;
         }
 
         private void CopyPropertyDef(PropertyDef source)
@@ -95,6 +166,12 @@ namespace dnlib.Inject
 
             if (source.GetMethod != null && source.GetMethod.HasBody)
                 target.GetMethod = target.DeclaringType.Methods.First(m => m.Name == $"get_{source.Name}");
+
+            foreach (var ca in source.CustomAttributes)
+                target.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
+
+            if (source.Constant != null)
+                target.Constant = CopyConstant(source.Constant);
         }
 
         private void CopyEventDef(EventDef source)
@@ -120,11 +197,46 @@ namespace dnlib.Inject
             }
 
             foreach (var ca in source.CustomAttributes)
+                target.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
+        }
+
+        /// <summary>
+        /// Copies custom attributes on each generic parameter, and - crucially - creates the
+        /// generic parameter *constraints* themselves (e.g. <c>where T : IComparable</c>).
+        /// </summary>
+        /// <remarks>
+        /// The original implementation never created constraints on the cloned generic
+        /// parameters at all: <c>CloneGenericParam</c> only copied number/flags/name, and the
+        /// later "fix" pass iterated the target's (always empty) <c>GenericParamConstraints</c>
+        /// collection, so it had nothing to fix. Every generic constraint silently
+        /// disappeared after injection. This pairs each source generic parameter with its
+        /// already-cloned target counterpart by index (both lists are built in the same
+        /// order) and creates a matching, properly-imported constraint for each one.
+        /// </remarks>
+        private void CopyGenericParameterDetails(IList<GenericParam> sourceParams, IList<GenericParam> targetParams)
+        {
+            for (int i = 0; i < sourceParams.Count; i++)
             {
-                target.CustomAttributes.Add(
-                    new CustomAttribute((ICustomAttributeType)_mapper.Importer.Import(ca.Constructor)));
+                var sourceParam = sourceParams[i];
+                var targetParam = targetParams[i];
+
+                foreach (var ca in sourceParam.CustomAttributes)
+                    targetParam.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
+
+                foreach (var constraint in sourceParam.GenericParamConstraints)
+                {
+                    var newConstraint = new GenericParamConstraintUser(_mapper.ImportType(constraint.Constraint));
+
+                    foreach (var ca in constraint.CustomAttributes)
+                        newConstraint.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
+
+                    targetParam.GenericParamConstraints.Add(newConstraint);
+                }
             }
         }
+
+        private static Constant CopyConstant(Constant source) =>
+            new ConstantUser(source.Value, source.Type);
 
         private static MethodDef FindCopiedMethod(EventDef target, string name) =>
             target.DeclaringType.Methods.FirstOrDefault(m => m.Name == name && m.HasBody);

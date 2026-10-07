@@ -64,6 +64,7 @@
   <ItemGroup>
     <Compile Include="Core\Library\Loader.cs" />
     <Compile Include="Core\Library\Embed.cs" />
+    <Compile Include="dnlib\Inject\AttributeCopier.cs" />
     <Compile Include="dnlib\Inject\ImportCache.cs" />
     <Compile Include="dnlib\Inject\Injection.cs" />
     <Compile Include="dnlib\Inject\InjectionException.cs" />
