@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using dnlib.DotNet;
 
 namespace dnlib.Inject
@@ -161,11 +160,18 @@ namespace dnlib.Inject
         {
             var target = (PropertyDef)_mapper.DnlibDefMaps[source];
 
-            if (source.SetMethod != null && source.SetMethod.HasBody)
-                target.SetMethod = target.DeclaringType.Methods.First(m => m.Name == $"set_{source.Name}");
+            if (source.GetMethod != null)
+                target.GetMethod = ResolveCopiedMethod(source.GetMethod);
 
-            if (source.GetMethod != null && source.GetMethod.HasBody)
-                target.GetMethod = target.DeclaringType.Methods.First(m => m.Name == $"get_{source.Name}");
+            if (source.SetMethod != null)
+                target.SetMethod = ResolveCopiedMethod(source.SetMethod);
+
+            foreach (var method in source.OtherMethods)
+            {
+                var copiedMethod = ResolveCopiedMethod(method);
+                if (copiedMethod != null)
+                    target.OtherMethods.Add(copiedMethod);
+            }
 
             foreach (var ca in source.CustomAttributes)
                 target.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
@@ -181,17 +187,17 @@ namespace dnlib.Inject
             target.EventType = _mapper.ImportType(source.EventType);
 
             if (source.AddMethod != null)
-                target.AddMethod = FindCopiedMethod(target, source.AddMethod.Name);
+                target.AddMethod = ResolveCopiedMethod(source.AddMethod);
 
             if (source.RemoveMethod != null)
-                target.RemoveMethod = FindCopiedMethod(target, source.RemoveMethod.Name);
+                target.RemoveMethod = ResolveCopiedMethod(source.RemoveMethod);
 
             if (source.InvokeMethod != null)
-                target.InvokeMethod = FindCopiedMethod(target, source.InvokeMethod.Name);
+                target.InvokeMethod = ResolveCopiedMethod(source.InvokeMethod);
 
             foreach (var method in source.OtherMethods)
             {
-                var copiedMethod = FindCopiedMethod(target, method.Name);
+                var copiedMethod = ResolveCopiedMethod(method);
                 if (copiedMethod != null)
                     target.OtherMethods.Add(copiedMethod);
             }
@@ -199,6 +205,31 @@ namespace dnlib.Inject
             foreach (var ca in source.CustomAttributes)
                 target.CustomAttributes.Add(_attributeCopier.CopyCustomAttribute(ca));
         }
+
+        /// <summary>
+        /// Resolves a source accessor method (getter/setter/add/remove/other) to its already
+        /// cloned counterpart via <see cref="InjectMapper.DnlibDefMaps"/>, rather than
+        /// reconstructing its name.
+        /// </summary>
+        /// <remarks>
+        /// The original implementation searched <c>target.DeclaringType.Methods</c> for a
+        /// method named <c>get_{PropertyName}</c> / <c>set_{PropertyName}</c>, and only did
+        /// so when the source accessor <c>HasBody</c>. Both of those were wrong in ways that
+        /// silently dropped the getter/setter link entirely:
+        /// <list type="bullet">
+        /// <item>An explicit interface implementation's accessor isn't named
+        /// <c>get_Bar</c> - it's named <c>IFoo.get_Bar</c> (or, for C#, the compiler-emitted
+        /// name includes the interface's full name), so the lookup never matched.</item>
+        /// <item>Abstract properties and interface properties have no body, so the
+        /// <c>HasBody</c> guard skipped wiring them up even when the name *did* match.</item>
+        /// </list>
+        /// Every accessor method is already cloned and registered in
+        /// <see cref="InjectMapper.DnlibDefMaps"/> by the time this runs (phase 2 only starts
+        /// after phase 1 has cloned every method on the type), so looking it up directly
+        /// side-steps naming entirely and works for every case above.
+        /// </remarks>
+        private MethodDef ResolveCopiedMethod(MethodDef source) =>
+            _mapper.DnlibDefMaps.TryGetValue(source, out var target) ? (MethodDef)target : null;
 
         /// <summary>
         /// Copies custom attributes on each generic parameter, and - crucially - creates the
@@ -237,8 +268,5 @@ namespace dnlib.Inject
 
         private static Constant CopyConstant(Constant source) =>
             new ConstantUser(source.Value, source.Type);
-
-        private static MethodDef FindCopiedMethod(EventDef target, string name) =>
-            target.DeclaringType.Methods.FirstOrDefault(m => m.Name == name && m.HasBody);
     }
 }
