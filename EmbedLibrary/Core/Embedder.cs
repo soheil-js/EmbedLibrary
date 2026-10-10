@@ -2,12 +2,12 @@
 using System.IO;
 using System.IO.Compression;
 using dnlib.Load;
-using dnlib.DotNet;
 using dnlib.DotNet.Emit;
+using EmbedLibrary.Core.Resolver;
 
-namespace EmbedLibrary.Core.Library
+namespace EmbedLibrary.Core
 {
-    public class Embed
+    public class Embedder
     {
         public static void Execute(AssemblyContext context, string[] librarys)
         {
@@ -21,12 +21,12 @@ namespace EmbedLibrary.Core.Library
             }
 
             //Class injection
-            var typeDef = context.GetTypeDef(typeof(Loader));
-            var copyTypeDef = context.Merge(typeDef, "AssemblyLoader", "EmbedLibrary");
+            var typeDef = context.GetTypeDef(typeof(AssemblyResolver));
+            var copyTypeDef = context.Merge(typeDef, "AssemblyResolver", "EmbedLibrary");
             if (copyTypeDef != null)
             {
                 //Call the load method in the <Module> class
-                var method = copyTypeDef.Methods.Single(m => m.Name == "Load");
+                var method = copyTypeDef.Methods.Single(m => m.Name == "Resolve");
                 context.GlobalTypeStaticConstructor.Body.Instructions.Insert(0, Instruction.Create(OpCodes.Call, method));
             }
         }

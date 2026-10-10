@@ -3,11 +3,10 @@ using System.IO;
 using System.Windows.Forms;
 using System.Collections.Generic;
 using dnlib.Load;
-using EmbedLibrary.Core.Library;
+using EmbedLibrary.Core;
 using dnlib.DotNet;
 using System.Threading.Tasks;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Reflection;
 
 namespace EmbedLibrary
@@ -84,12 +83,12 @@ namespace EmbedLibrary
 
         private void menuLatestRelease_Click(object sender, EventArgs e)
         {
-            OpenUrl("https://github.com/SoheilMV/EmbedLibrary/releases");
+            OpenUrl("https://github.com/soheil-js/EmbedLibrary/releases");
         }
 
         private void menuSourceCode_Click(object sender, EventArgs e)
         {
-            OpenUrl("https://github.com/SoheilMV/EmbedLibrary");
+            OpenUrl("https://github.com/soheil-js/EmbedLibrary");
         }
 
         private void menuAbout_Click(object sender, EventArgs e)
@@ -97,7 +96,7 @@ namespace EmbedLibrary
             FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetEntryAssembly().Location);
             string version = $"{versionInfo.ProductMajorPart}.{versionInfo.ProductMinorPart}";
             string copyright = versionInfo.LegalCopyright;
-            MessageBox.Show($"Developed by 'Soheil MV'\n\nVersion {version}\n{copyright}", this.Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show($"Developed by 'Soheil Jashnsaz'\n\nVersion {version}\n{copyright}", this.Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void txtName_DragDrop(object sender, DragEventArgs e)
@@ -238,7 +237,7 @@ namespace EmbedLibrary
                 using (AssemblyLoader assembly = new AssemblyLoader(_file))
                 {
                     AssemblyContext context = assembly.GetAssemblyContext();
-                    Embed.Execute(context, _librarys.ToArray());
+                    Embedder.Execute(context, _librarys.ToArray());
                     string address = Address(_file);
                     assembly.Write(address, writePdb);
                 }
@@ -266,44 +265,32 @@ namespace EmbedLibrary
                 MessageBox.Show("Please select the desired libraries!", this.Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
-        public bool OpenUrl(string url)
+        public static bool OpenUrl(string url)
         {
-            Process p = null;
-            bool success = true;
-            bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.OSDescription.Contains("microsoft-standard");
+            if (string.IsNullOrWhiteSpace(url))
+                return false;
+
+            Uri uri;
+            if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out uri))
+                return false;
+
+            if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+                return false;
+
             try
             {
-                p = Process.Start(new ProcessStartInfo(url)
+                using (Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
                 {
-                    UseShellExecute = isWindows
-                });
+                    UseShellExecute = true
+                }))
+                {
+                    return true;
+                }
             }
             catch
             {
-                if (isWindows)
-                {
-                    url = url.Replace("&", "^&");
-                    try
-                    {
-                        p = Process.Start(new ProcessStartInfo("cmd.exe", "/c start " + url)
-                        {
-                            CreateNoWindow = true
-                        });
-                    }
-                    catch
-                    {
-                        success = false;
-                    }
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                    p = Process.Start("xdg-open", url);
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                    p = Process.Start("open", url);
-                else
-                    success = false;
+                return false;
             }
-            p?.Dispose();
-            return success;
         }
     }
 }

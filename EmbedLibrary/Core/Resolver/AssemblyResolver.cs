@@ -4,11 +4,11 @@ using System.Reflection;
 using System.Globalization;
 using System.IO.Compression;
 
-namespace EmbedLibrary.Core.Library
+namespace EmbedLibrary.Core.Resolver
 {
-    internal class Loader
+    internal class AssemblyResolver
     {
-        public static void Load()
+        public static void Resolve()
         {
             AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
         }
