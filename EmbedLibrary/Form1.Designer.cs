@@ -50,10 +50,12 @@
             // 
             this.lbLibrarys.AllowDrop = true;
             this.lbLibrarys.FormattingEnabled = true;
-            this.lbLibrarys.Location = new System.Drawing.Point(12, 76);
+            this.lbLibrarys.ItemHeight = 16;
+            this.lbLibrarys.Location = new System.Drawing.Point(16, 94);
+            this.lbLibrarys.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.lbLibrarys.Name = "lbLibrarys";
             this.lbLibrarys.ScrollAlwaysVisible = true;
-            this.lbLibrarys.Size = new System.Drawing.Size(323, 160);
+            this.lbLibrarys.Size = new System.Drawing.Size(429, 196);
             this.lbLibrarys.TabIndex = 0;
             this.lbLibrarys.DragDrop += new System.Windows.Forms.DragEventHandler(this.lbLibrarys_DragDrop);
             this.lbLibrarys.DragEnter += new System.Windows.Forms.DragEventHandler(this.lbLibrarys_DragEnter);
@@ -61,19 +63,21 @@
             // txtName
             // 
             this.txtName.AllowDrop = true;
-            this.txtName.Location = new System.Drawing.Point(12, 27);
+            this.txtName.Location = new System.Drawing.Point(16, 33);
+            this.txtName.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.txtName.Name = "txtName";
             this.txtName.ReadOnly = true;
-            this.txtName.Size = new System.Drawing.Size(242, 20);
+            this.txtName.Size = new System.Drawing.Size(321, 22);
             this.txtName.TabIndex = 1;
             this.txtName.DragDrop += new System.Windows.Forms.DragEventHandler(this.txtName_DragDrop);
             this.txtName.DragEnter += new System.Windows.Forms.DragEventHandler(this.txtName_DragEnter);
             // 
             // btnBrowse
             // 
-            this.btnBrowse.Location = new System.Drawing.Point(260, 25);
+            this.btnBrowse.Location = new System.Drawing.Point(347, 31);
+            this.btnBrowse.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.btnBrowse.Name = "btnBrowse";
-            this.btnBrowse.Size = new System.Drawing.Size(75, 23);
+            this.btnBrowse.Size = new System.Drawing.Size(100, 28);
             this.btnBrowse.TabIndex = 2;
             this.btnBrowse.Text = "Browse...";
             this.btnBrowse.UseVisualStyleBackColor = true;
@@ -82,9 +86,10 @@
             // btnAdd
             // 
             this.btnAdd.Enabled = false;
-            this.btnAdd.Location = new System.Drawing.Point(12, 242);
+            this.btnAdd.Location = new System.Drawing.Point(16, 298);
+            this.btnAdd.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.btnAdd.Name = "btnAdd";
-            this.btnAdd.Size = new System.Drawing.Size(75, 23);
+            this.btnAdd.Size = new System.Drawing.Size(100, 28);
             this.btnAdd.TabIndex = 3;
             this.btnAdd.Text = "Add";
             this.btnAdd.UseVisualStyleBackColor = true;
@@ -93,9 +98,10 @@
             // btnClear
             // 
             this.btnClear.Enabled = false;
-            this.btnClear.Location = new System.Drawing.Point(93, 242);
+            this.btnClear.Location = new System.Drawing.Point(124, 298);
+            this.btnClear.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.btnClear.Name = "btnClear";
-            this.btnClear.Size = new System.Drawing.Size(75, 23);
+            this.btnClear.Size = new System.Drawing.Size(100, 28);
             this.btnClear.TabIndex = 4;
             this.btnClear.Text = "Clear";
             this.btnClear.UseVisualStyleBackColor = true;
@@ -103,9 +109,10 @@
             // 
             // btnRun
             // 
-            this.btnRun.Location = new System.Drawing.Point(260, 242);
+            this.btnRun.Location = new System.Drawing.Point(347, 298);
+            this.btnRun.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.btnRun.Name = "btnRun";
-            this.btnRun.Size = new System.Drawing.Size(75, 23);
+            this.btnRun.Size = new System.Drawing.Size(100, 28);
             this.btnRun.TabIndex = 5;
             this.btnRun.Text = "Run";
             this.btnRun.UseVisualStyleBackColor = true;
@@ -113,11 +120,12 @@
             // 
             // menuStrip1
             // 
+            this.menuStrip1.ImageScalingSize = new System.Drawing.Size(20, 20);
             this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.helpToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
-            this.menuStrip1.Size = new System.Drawing.Size(347, 24);
+            this.menuStrip1.Size = new System.Drawing.Size(463, 28);
             this.menuStrip1.TabIndex = 6;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -129,32 +137,32 @@
             this.toolStripSeparator1,
             this.menuAbout});
             this.helpToolStripMenuItem.Name = "helpToolStripMenuItem";
-            this.helpToolStripMenuItem.Size = new System.Drawing.Size(44, 20);
+            this.helpToolStripMenuItem.Size = new System.Drawing.Size(55, 24);
             this.helpToolStripMenuItem.Text = "Help";
             // 
             // menuLatestRelease
             // 
             this.menuLatestRelease.Name = "menuLatestRelease";
-            this.menuLatestRelease.Size = new System.Drawing.Size(180, 22);
+            this.menuLatestRelease.Size = new System.Drawing.Size(186, 26);
             this.menuLatestRelease.Text = "Latest Release";
             this.menuLatestRelease.Click += new System.EventHandler(this.menuLatestRelease_Click);
             // 
             // menuSourceCode
             // 
             this.menuSourceCode.Name = "menuSourceCode";
-            this.menuSourceCode.Size = new System.Drawing.Size(180, 22);
+            this.menuSourceCode.Size = new System.Drawing.Size(186, 26);
             this.menuSourceCode.Text = "Source Code";
             this.menuSourceCode.Click += new System.EventHandler(this.menuSourceCode_Click);
             // 
             // toolStripSeparator1
             // 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
-            this.toolStripSeparator1.Size = new System.Drawing.Size(177, 6);
+            this.toolStripSeparator1.Size = new System.Drawing.Size(183, 6);
             // 
             // menuAbout
             // 
             this.menuAbout.Name = "menuAbout";
-            this.menuAbout.Size = new System.Drawing.Size(180, 22);
+            this.menuAbout.Size = new System.Drawing.Size(186, 26);
             this.menuAbout.Text = "About";
             this.menuAbout.Click += new System.EventHandler(this.menuAbout_Click);
             // 
@@ -163,9 +171,10 @@
             this.chkAutomatically.AutoSize = true;
             this.chkAutomatically.Checked = true;
             this.chkAutomatically.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkAutomatically.Location = new System.Drawing.Point(12, 53);
+            this.chkAutomatically.Location = new System.Drawing.Point(16, 65);
+            this.chkAutomatically.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.chkAutomatically.Name = "chkAutomatically";
-            this.chkAutomatically.Size = new System.Drawing.Size(88, 17);
+            this.chkAutomatically.Size = new System.Drawing.Size(109, 20);
             this.chkAutomatically.TabIndex = 7;
             this.chkAutomatically.Text = "Automatically";
             this.chkAutomatically.UseVisualStyleBackColor = true;
@@ -176,18 +185,19 @@
             this.chkWritePdb.AutoSize = true;
             this.chkWritePdb.Checked = true;
             this.chkWritePdb.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkWritePdb.Location = new System.Drawing.Point(106, 53);
+            this.chkWritePdb.Location = new System.Drawing.Point(141, 65);
+            this.chkWritePdb.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.chkWritePdb.Name = "chkWritePdb";
-            this.chkWritePdb.Size = new System.Drawing.Size(73, 17);
+            this.chkWritePdb.Size = new System.Drawing.Size(88, 20);
             this.chkWritePdb.TabIndex = 8;
             this.chkWritePdb.Text = "Write Pdb";
             this.chkWritePdb.UseVisualStyleBackColor = true;
             // 
             // Form1
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(347, 277);
+            this.ClientSize = new System.Drawing.Size(463, 341);
             this.Controls.Add(this.chkWritePdb);
             this.Controls.Add(this.chkAutomatically);
             this.Controls.Add(this.btnRun);
@@ -200,10 +210,11 @@
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MainMenuStrip = this.menuStrip1;
+            this.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.MaximizeBox = false;
             this.Name = "Form1";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Embed Library .Net";
+            this.Text = "Embed Library";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
